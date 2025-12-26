@@ -1,0 +1,59 @@
+name: Build and Push Docker Image
+
+env:
+  IMAGE_REGISTRY: docker.io/
+  IMAGE_REGISTRY_USER: umpalumpy
+  IMAGE_REGISTRY_PASSWORD: ${{ secrets.DOCKER_TOKEN }}
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+  pull_request:
+    branches:
+      - main
+      - release/*
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          architecture: x64
+
+      - name: Extract and clean version from pom.xml
+        run: |
+          RAW_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          CLEAN_VERSION=${RAW_VERSION%-SNAPSHOT}  # Elimina "-SNAPSHOT" si está presente
+          echo "VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
+
+      - name: Build with Maven
+        run: mvn clean package
+
+      - name: Build from Dockerfile
+        id: build-image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: umpalumpy/auth-server
+          tags: ${{ env.VERSION }}
+          dockerfiles: |
+            ./Dockerfile
+
+      - name: Push to registry
+        id: push-image
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: umpalumpy/auth-server
+          tags: ${{ env.VERSION }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ env.IMAGE_REGISTRY_USER }}
+          password: ${{ env.IMAGE_REGISTRY_PASSWORD }}
