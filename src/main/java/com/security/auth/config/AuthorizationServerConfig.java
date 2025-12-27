@@ -49,4 +49,5 @@ public class AuthorizationServerConfig {
 
         return new InMemoryRegisteredClientRepository(client);
     }
+    
 }
